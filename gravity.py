@@ -1,14 +1,11 @@
-import mpmath as mp
+from mpmath import mp
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from collections import deque
 import copy
 import re
-from decimal import Decimal, getcontext
- 
-# 设置多精度浮点数的精度
-getcontext().prec = 100
-mp.dps=100
+
+mp.dps=50
 #    a2 =mp.mpf( 0.25);
 #    a3 =mp.mpf( 0.375);
 #    a4 = mp.mpf(12)/mp.mpf(13);
@@ -39,7 +36,7 @@ d3 = mp.mpf(-128)/mp.mpf( 4275  )
 d4 = mp.mpf(-2197)/mp.mpf( 75240)   
 d5 = mp.mpf(0.02       )       
 d6 = mp.mpf(2)/mp.mpf( 55       )  
-def apply_op(a: mp.mpf, b: mp.mpf, op: str) -> mp.mpf:
+def apply_op(a, b, op) :
     if op == '+':
         return a + b
     elif op == '-':
@@ -55,7 +52,7 @@ def apply_op(a: mp.mpf, b: mp.mpf, op: str) -> mp.mpf:
     else:
         raise ValueError(f"Unknown operator: {op}")
 
-def evaluate(expression: str) -> mp.mpf:
+def evaluate(expression) :
     values = []  # 用于存储数值的栈
     ops = []     # 用于存储操作符的栈
 
@@ -116,7 +113,7 @@ def evaluate(expression: str) -> mp.mpf:
     return values[0]
 
 # 定义操作符的优先级
-def precedence(op: str) -> int:
+def precedence(op) :
     if op in ('+', '-'):
         return 1
     if op in ('*', '/'):
@@ -198,14 +195,14 @@ def getdy(obj):
        objects[i].velocity=a
     return objects
 def norm(obj):
-    objects=0
+    objects=mp.mpf(0)
     for i in range(len(obj)):
        obj1 = obj[i]
        for j in range(len(obj1.position)):
            objects+= obj1.position[j]*obj1.position[j]
        for j in range(len(obj1.velocity)):
            objects+= obj1.velocity[j]*obj1.velocity[j]
-    return objects**mp.mpf(1/2)
+    return objects**half
 def getscale(objs,ratio):
     obj = copy.deepcopy(objs[0])
     if ratio[0]!=1:
@@ -228,8 +225,8 @@ def  Runge_Kutta(y,h):
     k6 = getdy(getscale([y,k1,k2,k3,k4,k5] , [1,h*b61,h*b62, h*b63,h*b64,h*b65]));      #x0+h6
     y = getscale([y,k1,k3,k4,k5],  [1,h * c1,h * c3,h * c4,h * c5]);
     out = getscale([k1,k3,k4,k5,k6],[d1,d3,d4,d5,d6]);
-    
     return y,norm(out)
+
 def ODE_RK4_hyh2(y0,h):
     y1,err=Runge_Kutta(y0,h);
     if err>mp.mpf(1.e-12):
@@ -295,5 +292,5 @@ def animate(frame):
 # 创建动画
 ani = FuncAnimation(fig, animate, frames=num_frames, interval=100, blit=True)
 
-# 显示动画
+
 plt.show()
