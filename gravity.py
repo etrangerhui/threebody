@@ -4,8 +4,8 @@ from matplotlib.animation import FuncAnimation
 from collections import deque
 import copy
 import re
-
-mp.dps=50
+import sys
+mp.dps=1000
 #    a2 =mp.mpf( 0.25);
 #    a3 =mp.mpf( 0.375);
 #    a4 = mp.mpf(12)/mp.mpf(13);
@@ -53,10 +53,10 @@ def apply_op(a, b, op) :
         raise ValueError(f"Unknown operator: {op}")
 
 def evaluate(expression) :
-    values = []  # 用于存储数值的栈
-    ops = []     # 用于存储操作符的栈
+    values = []  
+    ops = []     
 
-    # 处理表达式字符串，替换特殊字符并添加空格以便于分词
+    
     expression = re.sub(r'^-', '0-', expression)
     expression = re.sub(r'\+', ' + ', expression)
     expression = re.sub(r'e \+ ', 'e+', expression)
@@ -70,28 +70,28 @@ def evaluate(expression) :
     expression = re.sub(r'\)', ' ) ', expression)
     expression = re.sub(r'\^', ' ^ ', expression)
 
-    # 分词
+    
     tokens = re.findall(r'\S+', expression)
 
     for token in tokens:
         if token[0].isdigit() and len(token)>=1:
-            # 如果是数字（包括负数），则转换为mp.mpf并压入栈中
+            
             values.append(mp.mpf(token))
         elif token == '(':
-            # 如果是左括号，则压入栈中
+            
             ops.append(token)
         elif token == ')':
-            # 如果是右括号，则计算直到遇到左括号
+            
             while ops and ops[-1] != '(':
                 b = values.pop()
                 a = values.pop()
                 op = ops.pop()
                 values.append(apply_op(a, b, op))
-            # 弹出左括号
+            
             if ops:
                 ops.pop()
         else:
-            # 如果是操作符，则根据优先级处理
+            
             while ops and precedence(ops[-1]) >= precedence(token):
                 b = values.pop()
                 a = values.pop()
@@ -99,20 +99,20 @@ def evaluate(expression) :
                 values.append(apply_op(a, b, op))
             ops.append(token)
 
-    # 处理栈中剩余的操作符
+    
     while ops:
         b = values.pop()
         a = values.pop()
         op = ops.pop()
         values.append(apply_op(a, b, op))
 
-    # 表达式应该只有一个结果
+    
     if len(values) != 1:
         raise ValueError("Invalid expression")
 
     return values[0]
 
-# 定义操作符的优先级
+
 def precedence(op) :
     if op in ('+', '-'):
         return 1
@@ -125,8 +125,6 @@ def precedence(op) :
 
 
 
-
-# 物体类
 class Object:
     def __init__(self, x, y,vx,vy, mass, radius):
         self.position = [x, y]
@@ -141,12 +139,12 @@ class Object:
         return Object(self.position[0] + other.position[0],self.position[1]+ other.position[1],self.velocity[0] + other.velocity[0],self.velocity[1]+ other.velocity[1],self.mass,self.radius)
           
 
-# 计算两个物体之间的引力
+
 def calculate_gravity(obj1, obj2):
     dx=[obj1.position[0] - obj2.position[0],obj1.position[1] - obj2.position[1]];
     distance = dx[0]*dx[0]+dx[1]*dx[1]
     if distance == 0:
-        return [0, 0] # 避免除以零
+        return [0, 0] 
     force_magnitude = G * obj1.mass * obj2.mass / distance    
     return [dx[0]*force_magnitude  / distance**half,dx[1]*force_magnitude  / distance**half]
 def calculate_acc(obj2, objs):
@@ -175,13 +173,14 @@ def update_objects(objects, dt):
             obj2 = objects[j]
             
             # 计算引力
-            force = calculate_gravity(obj1, obj2)
-            acceleration = force / obj1.mass
-            obj1.velocity += acceleration * dt
+            force = calculate_gravity(obj2, obj1)
+            #acceleration = force / obj1.mass
+            obj1.velocity = [obj1.velocity[0]+force[0]/ obj1.mass* dt,obj1.velocity[1]+force[1]/ obj1.mass* dt];
             
     for i in range(len(objects)):
         obj1 = objects[i]
-        obj1.position += obj1.velocity * dt
+        obj1.position = [obj1.position[0]+obj1.velocity[0]* dt,obj1.position[1]+obj1.velocity[1]* dt];
+        
         tracex[i].append(obj1.position[0])  
         tracey[i].append(obj1.position[1])
 
@@ -228,19 +227,22 @@ def  Runge_Kutta(y,h):
     return y,norm(out)
 
 def ODE_RK4_hyh2(y0,h):
+    global tol
     y1,err=Runge_Kutta(y0,h);
-    if err>mp.mpf(1.e-12):
+    if err>mp.mpf(tol):
         y1=ODE_RK4_hyh2(y0,h*half);
         y1=ODE_RK4_hyh2(y1,h*half);   
     return y1
 
 
 objects=[]
-with open('test1.unv', 'r') as f:
+with open(sys.argv[1], 'r') as f:
     try:
         tline = fgetline(f)
         parts = tline.split()
         nbody = int(parts[0])
+        prec = int(parts[1])
+        tol = float(parts[2])
         for i in range(nbody):
             tline = fgetline(f)
             parts = tline.split()
@@ -251,6 +253,8 @@ with open('test1.unv', 'r') as f:
         raise IOError(f"Error reading the file: {e}")
 dt = mp.mpf(2*3.1415926535897/100)  
 num_frames = 1
+if prec>0 and prec<1000000:
+    mp.dps=prec
 tracex=[];tracey=[];
 for i in range(nbody):
     tracex+= [deque(maxlen=500)]
@@ -258,24 +262,25 @@ for i in range(nbody):
 
 lines = []
 fig, ax = plt.subplots()
-
+nn=0
 ax.set_xlim(-1.5, 1.5)
 ax.set_ylim(-1.5, 1.5)
 ax.set_aspect('equal')
-scatter = ax.scatter(range(nbody), range(nbody),c=range(nbody))  # 初始化为空散点图
+scatter = ax.scatter(range(nbody), range(nbody),c=range(nbody))  
 sizes = [o.radius*10000 for o in objects]
 scatter.set_sizes(sizes)
 for _ in range(nbody):
-    line, = ax.plot([], [])  # 创建线条对象，但不立即绘制
-    lines.append(line)  # 将线条添加到列表中
+    line, = ax.plot([], []) 
+    lines.append(line) 
 
 
 
 
 def animate(frame):
-    global objects
+    global objects,nn
     for _ in range(num_frames): 
         objects=ODE_RK4_hyh2(objects, dt)
+        #update_objects(objects, dt)
         for i in range(len(objects)):
             tracex[i].append(objects[i].position[0])  
             tracey[i].append(objects[i].position[1])
@@ -286,10 +291,11 @@ def animate(frame):
     
     for  i,line in enumerate(lines):
         line.set_data(tracex[i], tracey[i]) 
-    
+    nn+=1
+    if nn%100==0:plt.savefig(str(nn)+'.ps')
     return [scatter]+lines
 
-# 创建动画
+
 ani = FuncAnimation(fig, animate, frames=num_frames, interval=100, blit=True)
 
 

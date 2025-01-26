@@ -2,7 +2,7 @@ import numpy as np
 from scipy.integrate import quad
 from scipy.linalg import solve
 import sys
-
+ALWAYS=True
 def getd(s, t, a):
     if ALWAYS:
         d = np.abs(s) * (t + a)
@@ -90,6 +90,13 @@ def Q(t, a, b,c,d, n, m, a0):
     if len(d[n][m]) > 0:
         p -= np.sum(d[n][m]*c[n][m] * np.sin(getd(d[n][m], t, a0[n])))    
     return p
+def R(t, a, b,c,d, n, m, a0):
+    p = 0.0  
+    if len(a[n][m]) > 0:
+        p -= np.sum(a[n][m]*a[n][m]*b[n][m] * np.sin(getd(a[n][m], t, a0[n]))) 
+    if len(d[n][m]) > 0:
+        p -= np.sum(d[n][m]*d[n][m]*c[n][m] * np.cos(getd(d[n][m], t, a0[n])))    
+    return p
 
 def myFun(t, a,b,c, d, a0, n, m, m0,v,j):
     f = 0.0
@@ -162,7 +169,15 @@ def func(params, a,b, c, d, a0, m0, PI):
                 if s<=0:continue;
                 w, _ = quad(lambda t: myFun(t, a,b,c, d, a0, i, j, m0,u,v) * np.cos(getd(s, t, a0[i])), 0, 2 * PI)
                 f.append(-s**2 * c[i][j][p]- w / PI)
-    return f
+    s=0;
+    k=int(2*np.pi/0.1)
+    for p in range(k):
+        t=0.1+p*0.1
+        for i in range(m):
+            for j in range(n):
+                ds=myFun(t, a,b,c, d, a0, i, j, m0,u,v)-R(t, a, b,c,d, i, j, a0)
+                s+=ds*ds       
+    return f,s**0.5
 
 def Dfunc(params, a,b, c, d, a0, m0, PI):
     m, n = a.shape[0], a.shape[1]  
@@ -219,7 +234,7 @@ def Dfunc(params, a,b, c, d, a0, m0, PI):
 
 def solver(x0, a,b, c, d, a0, m0, PI, tol, max_iter):
     x = x0
-    g = func(x, a,b, c, d, a0, m0, PI)
+    g,diff = func(x, a,b, c, d, a0, m0, PI)
     H = Dfunc(x, a,b, c, d, a0, m0, PI)
     iter = 0
     while iter < max_iter:
@@ -229,11 +244,11 @@ def solver(x0, a,b, c, d, a0, m0, PI, tol, max_iter):
             return root
         p = solve(H, g)
         x_new = x - p
-        g_new = func(x_new, a,b, c, d, a0, m0, PI)
+        g_new,diff = func(x_new, a,b, c, d, a0, m0, PI)
         H = Dfunc(x_new, a,b, c, d, a0, m0, PI)
         x = x_new
         g = g_new
-        print(np.linalg.norm(p), np.linalg.norm(g))
+        print(np.linalg.norm(p), np.linalg.norm(g),diff)
         iter += 1
     root = x
     print('Maximum iterations reached. Solution may not be accurate.')
@@ -241,13 +256,16 @@ def solver(x0, a,b, c, d, a0, m0, PI, tol, max_iter):
 
 if __name__=="__main__":
     G = 6.67430e-11
-    a, b,c,d, a0, m0, params=readfile(sys.argv[1]);
-    if sys.argv[2].lower() in ('yes', 'true', 't', '1'):ALWAYS = True
-    if sys.argv[2].lower() in ('no', 'false', 'f', '0'):ALWAYS = False
+    if len(sys.argv)>1:
+        a, b,c,d, a0, m0, params=readfile(sys.argv[1]);
+    else:
+        a, b,c,d, a0, m0, params=readfile('cross.txt');
+    if len(sys.argv)>2 and sys.argv[2].lower() in ('yes', 'true', 't', '1'):ALWAYS = True
+    if len(sys.argv)>2 and sys.argv[2].lower() in ('no', 'false', 'f', '0'):ALWAYS = False
     params = solver(params, a, b,c,d, a0, m0, np.pi, 1.e-13, 100)
 
     with open('test.unv', 'w') as fp:
-        fp.write(str(len(m0)) + '\n')
+        fp.write(str(len(m0)) +' 1000 1.e-12 \n')
         t = 0
         b, c = update(params, a,b,c,d)
         for i in range(len(m0)):
